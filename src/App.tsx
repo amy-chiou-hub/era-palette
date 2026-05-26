@@ -37,7 +37,6 @@ interface RepairRecord {
 }
 
 export default function App() {
-  // 完美對齊 types.ts 擴充後的 GameState
   const [gameState, setGameState] = useState<GameState>({
     stage: 'welcome', 
     currentLevelIndex: 0,
@@ -54,6 +53,9 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(false);
   const [isHintOpen, setIsHintOpen] = useState(false);
   const [lockAlert, setLockAlert] = useState<{ show: boolean; required: number; name: string; isShortage: boolean } | null>(null);
+  
+  // 新增：用於控制「確認解鎖彈出視窗」的狀態
+  const [confirmUnlockTarget, setConfirmUnlockTarget] = useState<{ index: number; name: string; required: number } | null>(null);
 
   useEffect(() => {
     document.title = "時代光譜 | 歷史影像與色彩氛圍修復系統";
@@ -85,23 +87,52 @@ export default function App() {
     return { label: 'C', color: 'text-zinc-500' };
   };
 
-  const handleStartLevel = (index: number) => {
+  // 點擊關卡卡片時的邏輯處理
+  const handleLevelCardClick = (index: number) => {
     const required = getRequiredFragments(index);
     const isAlreadyUnlocked = unlockedLevels.includes(index);
 
-    if (!isAlreadyUnlocked) {
-      if (gameState.coins < required) {
-        setLockAlert({ show: true, required, name: ERAS[index].name, isShortage: true });
-        setTimeout(() => setLockAlert(null), 3000);
-        return;
-      } else {
-        setGameState(prev => ({ ...prev, coins: prev.coins - required }));
-        setUnlockedLevels(prev => [...prev, index]);
-        setLockAlert({ show: true, required, name: ERAS[index].name, isShortage: false });
-        setTimeout(() => setLockAlert(null), 2000);
-      }
+    // 如果已經解鎖，直接進入關卡
+    if (isAlreadyUnlocked) {
+      enterLevel(index);
+      return;
     }
 
+    // 如果未解鎖，先檢查餘額是否足夠扣除
+    if (gameState.coins < required) {
+      setLockAlert({ show: true, required, name: ERAS[index].name, isShortage: true });
+      setTimeout(() => setLockAlert(null), 3000);
+      return;
+    }
+
+    // 餘額足夠則打開「二次確認解鎖」視窗，不直接扣除
+    setConfirmUnlockTarget({
+      index,
+      name: ERAS[index].name,
+      required
+    });
+  };
+
+  // 玩家在確認視窗中按下「確定解鎖」後執行的動作
+  const handleConfirmUnlock = () => {
+    if (!confirmUnlockTarget) return;
+    const { index, required, name } = confirmUnlockTarget;
+
+    // 正式扣除碎片並記錄解鎖狀態
+    setGameState(prev => ({ ...prev, coins: prev.coins - required }));
+    setUnlockedLevels(prev => [...prev, index]);
+    setConfirmUnlockTarget(null);
+
+    // 觸發解鎖成功提示
+    setLockAlert({ show: true, required, name, isShortage: false });
+    setTimeout(() => setLockAlert(null), 2000);
+
+    // 解鎖後同步直接切換進入該關卡
+    enterLevel(index);
+  };
+
+  // 封裝進入關卡的邏輯
+  const enterLevel = (index: number) => {
     setGameState(prev => ({
       ...prev,
       stage: 'level',
@@ -166,6 +197,11 @@ export default function App() {
     }
   };
 
+  // 保留相容性
+  const handleStartLevel = (index: number) => {
+    enterLevel(index);
+  };
+
   const getFilterString = (f: Filters) => {
     return `
       sepia(${f.sepia}%) 
@@ -180,22 +216,28 @@ export default function App() {
   return (
     <div className="h-screen text-[#f3efe8] font-sans selection:bg-amber-200/20 overflow-hidden flex flex-col antialiased relative bg-[#09090b]">      
       
-      {/* 頂部導覽列 */}
-      <header className="h-16 shrink-0 border-b border-white/10 px-4 md:px-8 flex items-center justify-between bg-[#111114]/70 backdrop-blur-2xl z-50 shadow-[0_0_40px_rgba(0,180,255,0.08)]">
-        <div className="flex items-center gap-3 md:gap-4 cursor-pointer" onClick={() => setGameState(prev => ({ ...prev, stage: 'welcome' }))}>
-          <div className="w-9 h-9 relative flex items-center justify-center rounded-xl bg-zinc-900 border border-white/10 shadow-[0_0_20px_rgba(226,195,139,0.15)] overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-tr from-[#e2c38b]/20 via-[#b08ad9]/10 to-transparent opacity-60" />
-            <Aperture className="w-5 h-5 text-amber-200/80 group-hover:rotate-90 transition-transform duration-700 ease-out z-10" />
-            <div className="absolute w-2 h-2 bg-cyan-400 rounded-full blur-[4px] animate-pulse bottom-1 right-1" />
+      {/* 頂部導覽列：只在選單、修復中、報告頁面出現 */}
+      {gameState.stage !== 'welcome' && gameState.stage !== 'gallery' && (
+        <header className="h-16 shrink-0 border-b border-white/10 px-4 md:px-8 flex items-center justify-between bg-[#111114]/70 backdrop-blur-2xl z-50 shadow-[0_0_40px_rgba(0,180,255,0.08)]">
+          
+          {/* 左上角：返回首頁組件 */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setGameState(prev => ({ ...prev, stage: 'welcome' }))}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-white/10 rounded-xl bg-white/[0.02] text-xs font-bold tracking-widest text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-all active:scale-95"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>返回主頁</span>
+            </button>
+            
+            <div className="w-px h-4 bg-white/10"></div>
+            <div className="flex items-center gap-2">
+            </div>
           </div>
-          <h1 className="text-base md:text-xl font-black tracking-tight uppercase text-white">
-            <span className="bg-gradient-to-r from-cyan-300 via-blue-300 to-indigo-400 bg-clip-text text-transparent">時代光譜</span>
-          </h1>
-        </div>
-        
-        {/* 右側功能狀態組 */}
-        <div className="flex items-center gap-3 md:gap-4">
-          {gameState.stage !== 'gallery' && (
+          
+          
+          {/* 右上角：功能按鈕與常駐碎片 */}
+          <div className="flex items-center gap-3 md:gap-4">
             <button 
               onClick={() => setGameState(prev => ({ ...prev, stage: 'gallery' }))}
               className="flex items-center gap-2 px-3.5 py-2 border border-cyan-500/20 rounded-2xl bg-cyan-500/5 text-xs font-bold tracking-widest text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-400/40 transition-all shadow-[0_0_15px_rgba(6,182,212,0.05)] active:scale-95"
@@ -203,27 +245,27 @@ export default function App() {
               <BookOpen className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">時光觀測圖鑑</span>
             </button>
-          )}
 
-          <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#e2c38b]/10 border border-[#e2c38b]/20 shadow-[0_0_20px_rgba(34,211,238,0.12)]">
-            <Coins className="w-4 h-4 text-[#e2c38b]" />
-            <span className="text-sm font-bold text-cyan-100 tracking-wide">{gameState.coins}</span>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[#e2c38b]/60">碎片</span>
-          </div>
-
-          {gameState.stage !== 'menu' && gameState.stage !== 'welcome' && gameState.stage !== 'gallery' && (
-            <div className="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] font-medium tracking-widest text-white/50 uppercase">
-              <div className="w-px h-4 bg-white/10 hidden sm:block"></div>
-              <button
-                onClick={() => setGameState(prev => ({ ...prev, stage: 'menu' }))}
-                className="px-3 py-1.5 border border-white/10 rounded-sm hover:bg-white/[0.04] transition-colors text-[9px] md:text-[10px] uppercase tracking-widest"
-              >
-                檔案庫
-              </button>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#e2c38b]/10 border border-[#e2c38b]/20 shadow-[0_0_20px_rgba(34,211,238,0.12)]">
+              <Coins className="w-4 h-4 text-[#e2c38b]" />
+              <span className="text-sm font-bold text-cyan-100 tracking-wide">{gameState.coins}</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-[#e2c38b]/60">碎片</span>
             </div>
-          )}
-        </div>
-      </header>
+
+            {gameState.stage !== 'menu' && (
+              <div className="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] font-medium tracking-widest text-white/50 uppercase">
+                <div className="w-px h-4 bg-white/10 hidden sm:block"></div>
+                <button
+                  onClick={() => setGameState(prev => ({ ...prev, stage: 'menu' }))}
+                  className="px-3 py-1.5 border border-white/10 rounded-sm hover:bg-white/[0.04] transition-colors text-[9px] md:text-[10px] uppercase tracking-widest"
+                >
+                  檔案庫
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+      )}
 
       <div className="absolute right-0 top-0 h-[500px] w-[500px] rounded-full bg-[#5d5470]/20 blur-[140px] pointer-events-none" />
       <div className="absolute left-0 bottom-0 h-[500px] w-[500px] rounded-full bg-[#3f4f63]/20 blur-[140px] pointer-events-none" />
@@ -258,43 +300,38 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="max-w-2xl w-full text-center space-y-10 z-10 py-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/10 text-[10px] uppercase tracking-[0.3em] text-orange-400 font-bold shadow-inner">
-                  <Terminal className="w-3 h-3 text-orange-500 animate-pulse" />
-                  視覺文化觀測終端系統 v2.4
-                </div>
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1, duration: 0.5 }}
+                className="max-w-4xl w-full text-center space-y-12 z-10 py-8"
+              >
                 <div className="space-y-4">
-                  <h1 className="text-6xl md:text-8xl font-black text-white uppercase tracking-tighter">
+                  <h1 className="text-7xl md:text-9xl font-black text-white uppercase tracking-tighter">
                     時代<span className="bg-gradient-to-r from-[#e2c38b] via-[#c6b3ff] to-[#7a8ca5] bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(198,169,114,0.3)]">光譜</span>
                   </h1>
                   <p className="text-zinc-400 text-xs md:text-sm tracking-[0.25em] font-light uppercase">— 歷史影像與色彩氛圍修復系統 —</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left border border-white/10 p-6 bg-zinc-900/40 backdrop-blur-md rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                  <div className="space-y-1">
-                    <div className="text-[10px] font-bold text-orange-400 tracking-wider flex items-center gap-1.5"><Camera className="w-3 h-3" /> 01. 接入檔案</div>
-                    <p className="text-zinc-500 text-[11px] leading-relaxed">深入...世紀與城市的碎片，讀取歷史線索與影像背景。</p>
-                  </div>
-                  <div className="space-y-1 border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
-                    <div className="text-[10px] font-bold text-cyan-400 tracking-wider flex items-center gap-1.5"><Palette className="w-3 h-3" /> 02. 校準色彩</div>
-                    <p className="text-zinc-500 text-[11px] leading-relaxed">調校色溫、飽和度與對比，重現該時代專屬的視覺質感。</p>
-                  </div>
-                  <div className="space-y-1 border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
-                    <div className="text-[10px] font-bold text-indigo-400 tracking-wider flex items-center gap-1.5"><Sparkles className="w-3 h-3" /> 03. 還原真相</div>
-                    <p className="text-zinc-500 text-[11px] leading-relaxed">與歷史真實色彩進行精準比對，賺取碎片解鎖更多歷史庫。</p>
-                  </div>
-                </div>
-
-                <div className="pt-2 flex flex-col sm:flex-row gap-4 justify-center items-center">
+                {/* 2. 修改按鈕版面：由原來的垂直縱向排列，改為 flex-row 水平併排 */}
+                <div className="pt-4 flex flex-col sm:flex-row gap-5 justify-center items-center max-w-2xl mx-auto w-full px-4">
                   <button
                     onClick={() => setGameState(prev => ({ ...prev, stage: 'menu' }))}
-                    className="group relative inline-flex items-center gap-3 px-10 py-4.5 bg-gradient-to-r from-[#e2c38b] to-[#b08ad9] text-black font-black uppercase tracking-[0.25em] text-xs rounded-xl shadow-[0_0_30px_rgba(176,138,217,0.3)] hover:shadow-[0_0_40px_rgba(226,195,139,0.5)] hover:scale-[1.03] transition-all active:scale-95 duration-300"
+                    className="w-full sm:w-64 group relative inline-flex items-center justify-center gap-3 px-8 py-5 bg-gradient-to-r from-[#e2c38b] to-[#b08ad9] text-black font-black uppercase tracking-[0.25em] text-xs rounded-xl shadow-[0_0_30px_rgba(176,138,217,0.3)] hover:shadow-[0_0_40px_rgba(226,195,139,0.5)] hover:scale-[1.03] transition-all active:scale-95 duration-300"
                   >
                     <Play className="w-3.5 h-3.5 fill-black" />
                     進入視覺資料庫
                   </button>
+
+                  <button
+                    onClick={() => setGameState(prev => ({ ...prev, stage: 'gallery' }))}
+                    className="w-full sm:w-64 inline-flex items-center justify-center gap-2.5 px-8 py-5 border border-white/10 rounded-xl bg-white/[0.02] text-xs font-bold tracking-[0.2em] text-zinc-300 hover:text-white hover:bg-white/[0.06] hover:border-white/20 transition-all active:scale-95 duration-300"
+                  >
+                    <BookOpen className="w-4 h-4 text-cyan-400" />
+                    調閱時光觀測圖鑑
+                  </button>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
           )}
 
@@ -307,6 +344,7 @@ export default function App() {
               exit={{ opacity: 0, scale: 1.05 }}
               className="w-full h-full flex flex-col items-center p-6 md:p-8 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(120,94,58,0.22),_transparent_45%)] relative"
             >
+              {/* 頂部浮動小型警報（餘額不足/解鎖成功） */}
               <AnimatePresence>
                 {lockAlert?.show && (
                   <motion.div 
@@ -319,28 +357,71 @@ export default function App() {
                     {lockAlert.isShortage ? (
                       <>
                         <Lock className="w-4 h-4 text-red-400 animate-bounce" />
-                        <span>核心權限不足！開啟「{lockAlert.name}」需要消耗 <strong>{lockAlert.required}</strong> 碎片。</span>
+                        <span>時光碎片剩餘不足！開啟「{lockAlert.name}」需要消耗 <strong>{lockAlert.required}</strong> 碎片。</span>
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
-                        <span>成功消耗 <strong>{lockAlert.required}</strong> 碎片，解鎖「{lockAlert.name}」觀測權限！</span>
+                        <span>成功扣除 <strong>{lockAlert.required}</strong> 碎片，已正式接入「{lockAlert.name}」權限！</span>
                       </>
                     )}
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              <div className="absolute right-6 top-6 z-40">
-                <button
-                  onClick={() => setGameState(prev => ({ ...prev, stage: 'welcome' }))}
-                  className="flex items-center gap-2 px-4 py-2 border border-white/10 rounded-xl bg-white/[0.02] text-xs font-bold tracking-widest text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-all"
-                >
-                  <Home className="w-3.5 h-3.5" />返回首頁
-                </button>
-              </div>
+              {/* 3. 新增彈出式「二次解鎖確認」對話視窗 */}
+              <AnimatePresence>
+                {confirmUnlockTarget && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4"
+                  >
+                    <motion.div 
+                      initial={{ scale: 0.95, y: 20 }}
+                      animate={{ scale: 1, y: 0 }}
+                      exit={{ scale: 0.95, y: 10 }}
+                      className="max-w-md w-full bg-[#121216] border border-white/10 rounded-2xl p-6 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-6"
+                    >
+                      <div className="flex items-center gap-3 text-cyan-400">
+                        <Coins className="w-6 h-6 animate-pulse" />
+                        <h3 className="text-lg font-black tracking-wide">調閱權限確認</h3>
+                      </div>
+                      
+                      <div className="space-y-2 text-zinc-300 text-sm leading-relaxed">
+                        <p>您即將申請接入歷史時空節點：<strong className="text-white text-base">「{confirmUnlockTarget.name}」</strong></p>
+                        <p className="text-zinc-400">開啟此高度機密檔案需要自您的系統終端中扣除：</p>
+                        <div className="flex items-center gap-2 py-2 px-4 rounded-xl bg-cyan-950/30 border border-cyan-500/20 w-fit mt-1">
+                          <Coins className="w-4 h-4 text-cyan-400" />
+                          <span className="text-cyan-200 font-mono font-bold text-base">-{confirmUnlockTarget.required} 碎片</span>
+                        </div>
+                      </div>
 
-              <div className="max-w-6xl w-full py-8 md:py-16">
+                      <div className="text-[11px] text-zinc-500 font-mono border-t border-white/5 pt-4">
+                        目前帳戶可用餘額: {gameState.coins} 碎片 (扣除後剩餘: {gameState.coins - confirmUnlockTarget.required})
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={() => setConfirmUnlockTarget(null)}
+                          className="flex-1 py-3 border border-white/10 rounded-xl text-xs font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-all active:scale-95"
+                        >
+                          取消
+                        </button>
+                        <button
+                          onClick={handleConfirmUnlock}
+                          className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-black tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.2)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all active:scale-95"
+                        >
+                          確認扣除並開啟
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="max-w-6xl w-full py-8 md:py-12">
                 <div className="text-center mb-10 md:mb-16">
                   <div className="text-[10px] uppercase tracking-[0.4em] text-orange-400 mb-4 font-bold">歷史視覺檔案總庫</div>
                   <h1 className="text-5xl md:text-8xl font-black tracking-[-0.06em] text-white">
@@ -361,7 +442,7 @@ export default function App() {
                         whileHover={(!isLocked || isUnlocked) ? { y: -10 } : {}}
                         className={`group relative aspect-[3/4] sm:aspect-[4/5] overflow-hidden cursor-pointer border rounded-3xl backdrop-blur-xl transition-all duration-500 shadow-2xl
                           ${(!isLocked || isUnlocked) ? 'border-white/10 bg-white/[0.04]' : 'border-white/5 bg-black/40 cursor-not-allowed opacity-60'}`}                      
-                        onClick={() => handleStartLevel(index)}
+                        onClick={() => handleLevelCardClick(index)}
                       >
                         <img 
                           src={era.imageUrl} 
@@ -380,20 +461,26 @@ export default function App() {
                             </div>
                           ) : <div />}
 
-                          <div className="backdrop-blur-md border border-white/10 px-2 py-0.5 rounded bg-black/40">
+                          {/* 3. 優化右上角解鎖圖示顯示：更鮮明、更有層次 */}
+                          <div className={`backdrop-blur-md border px-2.5 py-1 rounded-xl shadow-md transition-colors ${isUnlocked ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-400' : 'bg-cyan-950/60 border-cyan-500/30 text-cyan-400 font-mono'}`}>
                             {isUnlocked ? (
-                              <span className="text-emerald-400">已解鎖</span>
+                              <span className="flex items-center gap-1">✓ 已接入</span>
                             ) : (
-                              <span className={isLocked ? 'text-zinc-500' : 'text-cyan-400'}>🔑 {requiredFragments} 碎片</span>
+                              <span className={`flex items-center gap-1 ${isLocked ? 'text-zinc-500 border-zinc-700 bg-zinc-900/40' : ''}`}>
+                                🔑 {requiredFragments} 碎片
+                              </span>
                             )}
                           </div>
                         </div>
 
                         {!isUnlocked && (
                           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 space-y-2">
-                            <div className={`w-10 h-10 rounded-full border flex items-center justify-center ${isLocked ? 'text-zinc-500 border-white/5 bg-zinc-900/80' : 'text-cyan-400 border-cyan-500/30 bg-cyan-950/80 animate-pulse'}`}>
+                            <div className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${isLocked ? 'text-zinc-500 border-white/5 bg-zinc-900/80' : 'text-cyan-400 border-cyan-500/40 bg-cyan-950/80 shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse'}`}>
                               <Lock className="w-4 h-4" />
                             </div>
+                            <span className={`text-[10px] font-black tracking-widest px-2.5 py-1 rounded-md border backdrop-blur-sm ${isLocked ? 'text-zinc-500 border-white/5 bg-zinc-900/60' : 'text-cyan-300 border-cyan-500/20 bg-cyan-950/50'}`}>
+                              {isLocked ? '碎片不足' : '點擊申請解鎖'}
+                            </span>
                           </div>
                         )}
 
@@ -428,10 +515,10 @@ export default function App() {
                     </h2>
                   </div>
                   <button
-                    onClick={() => setGameState(prev => ({ ...prev, stage: 'menu' }))}
-                    className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold tracking-widest text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                    onClick={() => setGameState(prev => ({ ...prev, stage: 'welcome' }))}
+                    className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs font-bold tracking-widest text-zinc-300 hover:text-white hover:bg-white/10 transition-all active:scale-95"
                   >
-                    返回控制主機
+                    返回主頁面
                   </button>
                 </div>
 
@@ -483,10 +570,10 @@ export default function App() {
 
                             <div className="pt-4 border-t border-white/5 flex flex-wrap gap-2 items-center justify-between">
                               <div className="text-[10px] font-mono text-zinc-500">
-                                氛圍特徵碼：T({record.savedFilters.temp}) S({record.savedFilters.saturate}%) G({record.savedFilters.grayscale}%)
+                                氛圍特特征碼：T({record.savedFilters.temp}) S({record.savedFilters.saturate}%) G({record.savedFilters.grayscale}%)
                               </div>
                               <button 
-                                onClick={() => handleStartLevel(record.levelIndex)}
+                                onClick={() => handleLevelCardClick(record.levelIndex)}
                                 className="inline-flex items-center gap-2 text-xs font-bold text-cyan-400 hover:text-white transition-colors uppercase tracking-widest"
                               >
                                 再次接入本節點修復 <ChevronRight className="w-3 h-3" />
@@ -670,11 +757,6 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
-
-      <footer className="h-10 border-t border-white/5 px-8 flex items-center justify-between bg-black/60 text-[9px] uppercase tracking-[0.3em] text-white/20">
-        <span>修復引擎: v2.4.0-穩定版</span>
-        <span>© 2026 視覺文化檔案庫</span>
-      </footer>
     </div>
   );
 }
