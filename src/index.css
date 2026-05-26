@@ -1,61 +1,58 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @import "tailwindcss";
 
-
-:root {
-  color-scheme: dark;
-}
-:root {
-  color-scheme: dark;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  margin: 0;
-  background:
-    radial-gradient(circle at top, rgba(59,130,246,0.15), transparent 35%),
-    linear-gradient(to bottom, #050816, #02030a);
-  color: white;
-  overflow: hidden;
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: linear-gradient(
+    rgba(255, 255, 255, 0.7) 1px,
+    transparent 1px
+  );
+  background-size: 100% 3px;
+  mix-blend-mode: overlay;
 }
 
-* {
-  box-sizing: border-box;
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px);
+  background-size: 180px 180px;
+  animation: drift 30s linear infinite;
 }
 
-::selection {
-  background: rgba(34, 211, 238, 0.3);
+@keyframes drift {
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY(-100px);
+  }
 }
 
-.glow-text {
-  text-shadow:
-    0 0 10px rgba(59,130,246,0.5),
-    0 0 30px rgba(59,130,246,0.3);
-}
-
-.glass {
-  background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(20px);
+.glass-card {
+  backdrop-filter: blur(24px);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 0 80px rgba(0,0,0,0.45);
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
+.time-glow {
+  box-shadow:
+    0 0 80px rgba(198, 169, 114, 0.08),
+    0 0 140px rgba(122, 140, 165, 0.06);
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(59,130,246,0.35);
-  border-radius: 999px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(59,130,246,0.6);
+.noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: url('https://grainy-gradients.vercel.app/noise.svg');
+  mix-blend-mode: overlay;
+  pointer-events: none;
 }
