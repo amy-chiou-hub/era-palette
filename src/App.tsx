@@ -53,8 +53,6 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(false);
   const [isHintOpen, setIsHintOpen] = useState(false);
   const [lockAlert, setLockAlert] = useState<{ show: boolean; required: number; name: string; isShortage: boolean } | null>(null);
-  
-  // 新增：用於控制「確認解鎖彈出視窗」的狀態
   const [confirmUnlockTarget, setConfirmUnlockTarget] = useState<{ index: number; name: string; required: number } | null>(null);
 
   useEffect(() => {
@@ -73,6 +71,7 @@ export default function App() {
       const diff = Math.abs(p - t);
       return Math.max(0, Math.round(100 * (1 - diff / range)));
     };
+    // 評分系統對齊：原 grayscale 轉為評測玩家對「時光暗角」掌控的精準度
     const warmthScore = Math.round((calc(player.temp, target.temp, 50) + calc(player.sepia, target.sepia, 40)) / 2);
     const colorScore = Math.round((calc(player.saturate, target.saturate, 60) + calc(player.grayscale, target.grayscale, 40)) / 2);
     const textureScore = Math.round((calc(player.contrast, target.contrast, 40) + calc(player.brightness, target.brightness, 40)) / 2);
@@ -87,51 +86,37 @@ export default function App() {
     return { label: 'C', color: 'text-zinc-500' };
   };
 
-  // 點擊關卡卡片時的邏輯處理
   const handleLevelCardClick = (index: number) => {
     const required = getRequiredFragments(index);
     const isAlreadyUnlocked = unlockedLevels.includes(index);
 
-    // 如果已經解鎖，直接進入關卡
     if (isAlreadyUnlocked) {
       enterLevel(index);
       return;
     }
 
-    // 如果未解鎖，先檢查餘額是否足夠扣除
     if (gameState.coins < required) {
       setLockAlert({ show: true, required, name: ERAS[index].name, isShortage: true });
       setTimeout(() => setLockAlert(null), 3000);
       return;
     }
 
-    // 餘額足夠則打開「二次確認解鎖」視窗，不直接扣除
-    setConfirmUnlockTarget({
-      index,
-      name: ERAS[index].name,
-      required
-    });
+    setConfirmUnlockTarget({ index, name: ERAS[index].name, required });
   };
 
-  // 玩家在確認視窗中按下「確定解鎖」後執行的動作
   const handleConfirmUnlock = () => {
     if (!confirmUnlockTarget) return;
     const { index, required, name } = confirmUnlockTarget;
 
-    // 正式扣除碎片並記錄解鎖狀態
     setGameState(prev => ({ ...prev, coins: prev.coins - required }));
     setUnlockedLevels(prev => [...prev, index]);
     setConfirmUnlockTarget(null);
 
-    // 觸發解鎖成功提示
     setLockAlert({ show: true, required, name, isShortage: false });
     setTimeout(() => setLockAlert(null), 2000);
-
-    // 解鎖後同步直接切換進入該關卡
     enterLevel(index);
   };
 
-  // 封裝進入關卡的邏輯
   const enterLevel = (index: number) => {
     setGameState(prev => ({
       ...prev,
@@ -182,24 +167,33 @@ export default function App() {
     }));
   };
 
+  // 1. 核心 Bug 修復：完善結算畫面進入下一關的扣除碎片機制，堵住白嫖漏洞！
   const handleNext = () => {
     const nextIndex = gameState.currentLevelIndex + 1;
     if (nextIndex < ERAS.length) {
       const required = getRequiredFragments(nextIndex);
       const isAlreadyUnlocked = unlockedLevels.includes(nextIndex);
-      if (isAlreadyUnlocked || gameState.coins >= required) {
-        handleStartLevel(nextIndex);
+      
+      if (isAlreadyUnlocked) {
+        // 如果原本在大廳就解鎖過了，直接放行進入
+        enterLevel(nextIndex);
+      } else if (gameState.coins >= required) {
+        // 如果下一關是鎖定的，但剛剛結算完碎片夠扣，在這裡正式執行「扣碎片」與「解鎖建檔」邏輯！
+        setGameState(prev => ({ ...prev, coins: prev.coins - required }));
+        setUnlockedLevels(prev => [...prev, nextIndex]);
+        
+        // 彈出貼心通知告知自動扣除
+        setLockAlert({ show: true, required, name: ERAS[nextIndex].name, isShortage: false });
+        setTimeout(() => setLockAlert(null), 2500);
+
+        enterLevel(nextIndex);
       } else {
+        // 如果不夠扣，安全退回大廳檔案庫，不讓玩家白嫖偷渡
         setGameState((prev) => ({ ...prev, stage: 'menu' }));
       }
     } else {
       setGameState((prev) => ({ ...prev, stage: 'menu' }));
     }
-  };
-
-  // 保留相容性
-  const handleStartLevel = (index: number) => {
-    enterLevel(index);
   };
 
   const getFilterString = (f: Filters) => {
@@ -208,19 +202,16 @@ export default function App() {
       brightness(${f.brightness}%) 
       contrast(${f.contrast}%) 
       saturate(${f.saturate}%) 
-      grayscale(${f.grayscale}%)
-      hue-rotate(${f.temp * 0.2}deg)
+      hue-rotate(${f.temp * 0.25}deg)
     `.trim();
   };
 
   return (
-    <div className="h-screen text-[#f3efe8] font-sans selection:bg-amber-200/20 overflow-hidden flex flex-col antialiased relative bg-[#09090b]">      
+    <div className="h-screen text-[#f3efe8] font-sans selection:bg-amber-200/20 overflow-hidden flex flex-col antialiased relative bg-[#060608]">      
       
-      {/* 頂部導覽列：只在選單、修復中、報告頁面出現 */}
+      {/* 頂部導覽列 */}
       {gameState.stage !== 'welcome' && gameState.stage !== 'gallery' && (
         <header className="h-16 shrink-0 border-b border-white/10 px-4 md:px-8 flex items-center justify-between bg-[#111114]/70 backdrop-blur-2xl z-50 shadow-[0_0_40px_rgba(0,180,255,0.08)]">
-          
-          {/* 左上角：返回首頁組件 */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setGameState(prev => ({ ...prev, stage: 'welcome' }))}
@@ -229,14 +220,12 @@ export default function App() {
               <Home className="w-3.5 h-3.5" />
               <span>返回主頁</span>
             </button>
-            
             <div className="w-px h-4 bg-white/10"></div>
             <div className="flex items-center gap-2">
+        
             </div>
           </div>
           
-          
-          {/* 右上角：功能按鈕與常駐碎片 */}
           <div className="flex items-center gap-3 md:gap-4">
             <button 
               onClick={() => setGameState(prev => ({ ...prev, stage: 'gallery' }))}
@@ -267,8 +256,9 @@ export default function App() {
         </header>
       )}
 
-      <div className="absolute right-0 top-0 h-[500px] w-[500px] rounded-full bg-[#5d5470]/20 blur-[140px] pointer-events-none" />
-      <div className="absolute left-0 bottom-0 h-[500px] w-[500px] rounded-full bg-[#3f4f63]/20 blur-[140px] pointer-events-none" />
+      {/* 背景環境微光 */}
+      <div className="absolute right-0 top-0 h-[600px] w-[600px] rounded-full bg-[#5d5470]/15 blur-[160px] pointer-events-none animate-pulse duration-[8s]" />
+      <div className="absolute left-0 bottom-0 h-[600px] w-[600px] rounded-full bg-[#3f4f63]/15 blur-[160px] pointer-events-none animate-pulse duration-[10s]" />
 
       <main className="flex-1 relative flex overflow-hidden">
         <AnimatePresence mode="wait">
@@ -279,57 +269,91 @@ export default function App() {
               key="welcome"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.6 }}
-              className="w-full h-full flex flex-col items-center justify-center p-6 bg-[radial-gradient(circle_at_center,_rgba(24,24,27,0.8),_rgba(9,9,11,1)),_url('https://grainy-gradients.vercel.app/noise.svg')] bg-cover relative overflow-hidden"
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full h-full flex flex-col items-center justify-center p-6 bg-[radial-gradient(circle_at_center,_rgba(20,20,25,0.4),_rgba(6,6,8,1))] relative overflow-hidden"
             >
-              {/* 背景動態時光流動粒子 */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {/* 流動極光背景 */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-40">
                 {[
-                  { color: 'bg-amber-500/10', size: 'w-72 h-72', x: ['-10%', '20%'], y: ['20%', '40%'], duration: 15 },
-                  { color: 'bg-purple-500/10', size: 'w-96 h-96', x: ['80%', '60%'], y: ['10%', '30%'], duration: 20 },
-                  { color: 'bg-cyan-500/10', size: 'w-80 h-80', x: ['20%', '50%'], y: ['70%', '50%'], duration: 18 },
-                  { color: 'bg-blue-500/5', size: 'w-[500px] h-[500px]', x: ['50%', '30%'], y: ['40%', '70%'], duration: 25 },
+                  { color: 'bg-amber-500/10', size: 'w-[450px] h-[450px]', x: ['-10%', '15%'], y: ['15%', '35%'], duration: 18 },
+                  { color: 'bg-purple-500/10', size: 'w-[550px] h-[550px]', x: ['85%', '65%'], y: ['10%', '30%'], duration: 25 },
+                  { color: 'bg-cyan-500/8', size: 'w-[480px] h-[480px]', x: ['20%', '45%'], y: ['65%', '40%'], duration: 20 },
                 ].map((particle, i) => (
                   <motion.div
                     key={i}
-                    className={`absolute rounded-full blur-[80px] ${particle.color} ${particle.size}`}
-                    animate={{ x: particle.x, y: particle.y, scale: [1, 1.15, 0.9, 1] }}
+                    className={`absolute rounded-full blur-[120px] ${particle.color} ${particle.size}`}
+                    animate={{ x: particle.x, y: particle.y, scale: [1, 1.1, 0.95, 1] }}
                     transition={{ duration: particle.duration, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
                   />
                 ))}
               </div>
 
+              {/* 璀璨星空微粒 */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+                {[
+                  { w: 3, h: 3, top: '15%', left: '10%', d: 6, delay: 0 },
+                  { w: 2, h: 2, top: '25%', left: '80%', d: 8, delay: 1 },
+                  { w: 4, h: 4, top: '70%', left: '15%', d: 7, delay: 3 },
+                  { w: 3, h: 3, top: '80%', left: '75%', d: 9, delay: 0.5 },
+                  { w: 2, h: 4, top: '40%', left: '85%', d: 5, delay: 2 },
+                  { w: 5, h: 5, top: '10%', left: '60%', d: 11, delay: 4 },
+                  { w: 3, h: 3, top: '55%', left: '5%', d: 7, delay: 1.5 },
+                  { w: 2, h: 2, top: '85%', left: '40%', d: 10, delay: 2.5 },
+                ].map((star, idx) => (
+                  <motion.div
+                    key={idx}
+                    className="absolute bg-white rounded-full mix-blend-screen"
+                    style={{
+                      width: star.w,
+                      height: star.h,
+                      top: star.top,
+                      left: star.left,
+                      boxShadow: '0 0 8px rgba(255, 255, 255, 0.8), 0 0 15px rgba(226, 195, 139, 0.4)'
+                    }}
+                    animate={{ y: [0, -40, 0], x: [0, 15, 0], opacity: [0.1, 0.9, 0.3, 0.9, 0.1], scale: [1, 1.3, 0.8, 1.2, 1] }}
+                    transition={{ duration: star.d, delay: star.delay, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                ))}
+              </div>
+
               <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1, duration: 0.5 }}
-                className="max-w-4xl w-full text-center space-y-12 z-10 py-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                className="max-w-4xl w-full text-center space-y-16 z-10 py-8 relative"
               >
-                <div className="space-y-4">
-                  <h1 className="text-7xl md:text-9xl font-black text-white uppercase tracking-tighter">
-                    時代<span className="bg-gradient-to-r from-[#e2c38b] via-[#c6b3ff] to-[#7a8ca5] bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(198,169,114,0.3)]">光譜</span>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-32 bg-gradient-to-r from-amber-500/10 to-purple-500/10 blur-[60px] pointer-events-none rounded-full" />
+                <div className="space-y-6 relative">
+                  <h1 className="text-7xl sm:text-8xl md:text-[7.5rem] font-black tracking-[0.12em] text-white uppercase leading-none pl-[0.12em]">
+                    時代<span className="bg-gradient-to-r from-[#e2c38b] via-[#d4bfff] to-[#8fa7c7] bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(226,195,139,0.25)]">光譜</span>
                   </h1>
-                  <p className="text-zinc-400 text-xs md:text-sm tracking-[0.25em] font-light uppercase">— 歷史影像與色彩氛圍修復系統 —</p>
+                  <div className="flex items-center justify-center gap-2 text-zinc-400/80 text-xs md:text-sm tracking-[0.35em] uppercase font-light pt-2 pl-[0.35em]">
+                    <Terminal className="w-3.5 h-3.5 text-amber-200/50 animate-pulse shrink-0" />
+                    <span>歷史影像與色彩氛圍修復系統</span>
+                  </div>
                 </div>
 
-                {/* 2. 修改按鈕版面：由原來的垂直縱向排列，改為 flex-row 水平併排 */}
-                <div className="pt-4 flex flex-col sm:flex-row gap-5 justify-center items-center max-w-2xl mx-auto w-full px-4">
-                  <button
+                <div className="pt-6 flex flex-col sm:flex-row gap-5 justify-center items-center max-w-2xl mx-auto w-full px-6">
+                  <motion.button
+                    whileHover={{ scale: 1.03, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => setGameState(prev => ({ ...prev, stage: 'menu' }))}
-                    className="w-full sm:w-64 group relative inline-flex items-center justify-center gap-3 px-8 py-5 bg-gradient-to-r from-[#e2c38b] to-[#b08ad9] text-black font-black uppercase tracking-[0.25em] text-xs rounded-xl shadow-[0_0_30px_rgba(176,138,217,0.3)] hover:shadow-[0_0_40px_rgba(226,195,139,0.5)] hover:scale-[1.03] transition-all active:scale-95 duration-300"
+                    className="w-full sm:w-60 group relative inline-flex items-center justify-center gap-3 px-8 py-4.5 bg-gradient-to-r from-[#e5ca9e] via-[#c09ee5] to-[#899db8] text-black font-black uppercase tracking-[0.25em] text-xs rounded-xl shadow-[0_10px_35px_rgba(192,158,229,0.2)] hover:shadow-[0_15px_45px_rgba(229,202,158,0.35)] transition-all duration-300 cursor-pointer"
                   >
-                    <Play className="w-3.5 h-3.5 fill-black" />
+                    <Play className="w-3.5 h-3.5 fill-black transition-transform group-hover:translate-x-0.5" />
                     進入視覺資料庫
-                  </button>
+                  </motion.button>
 
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.03, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => setGameState(prev => ({ ...prev, stage: 'gallery' }))}
-                    className="w-full sm:w-64 inline-flex items-center justify-center gap-2.5 px-8 py-5 border border-white/10 rounded-xl bg-white/[0.02] text-xs font-bold tracking-[0.2em] text-zinc-300 hover:text-white hover:bg-white/[0.06] hover:border-white/20 transition-all active:scale-95 duration-300"
+                    className="w-full sm:w-60 inline-flex items-center justify-center gap-2.5 px-8 py-4.5 border border-white/10 rounded-xl bg-white/[0.02] backdrop-blur-md text-xs font-bold tracking-[0.2em] text-zinc-300 hover:text-white hover:bg-white/[0.06] hover:border-white/20 transition-all duration-300 cursor-pointer shadow-lg"
                   >
                     <BookOpen className="w-4 h-4 text-cyan-400" />
                     調閱時光觀測圖鑑
-                  </button>
+                  </motion.button>
                 </div>
               </motion.div>
             </motion.div>
@@ -342,9 +366,8 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
-              className="w-full h-full flex flex-col items-center p-6 md:p-8 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(120,94,58,0.22),_transparent_45%)] relative"
+              className="w-full h-full flex flex-col items-center p-6 md:p-8 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(120,94,58,0.18),_transparent_45%)] relative"
             >
-              {/* 頂部浮動小型警報（餘額不足/解鎖成功） */}
               <AnimatePresence>
                 {lockAlert?.show && (
                   <motion.div 
@@ -369,7 +392,7 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              {/* 3. 新增彈出式「二次解鎖確認」對話視窗 */}
+              {/* 解鎖確認視窗 */}
               <AnimatePresence>
                 {confirmUnlockTarget && (
                   <motion.div 
@@ -386,9 +409,8 @@ export default function App() {
                     >
                       <div className="flex items-center gap-3 text-cyan-400">
                         <Coins className="w-6 h-6 animate-pulse" />
-                        <h3 className="text-lg font-black tracking-wide">調閱權限確認</h3>
+                        <h3 className="text-lg font-black tracking-wide">調閱權限二次確認</h3>
                       </div>
-                      
                       <div className="space-y-2 text-zinc-300 text-sm leading-relaxed">
                         <p>您即將申請接入歷史時空節點：<strong className="text-white text-base">「{confirmUnlockTarget.name}」</strong></p>
                         <p className="text-zinc-400">開啟此高度機密檔案需要自您的系統終端中扣除：</p>
@@ -397,24 +419,12 @@ export default function App() {
                           <span className="text-cyan-200 font-mono font-bold text-base">-{confirmUnlockTarget.required} 碎片</span>
                         </div>
                       </div>
-
                       <div className="text-[11px] text-zinc-500 font-mono border-t border-white/5 pt-4">
                         目前帳戶可用餘額: {gameState.coins} 碎片 (扣除後剩餘: {gameState.coins - confirmUnlockTarget.required})
                       </div>
-
                       <div className="flex gap-3 pt-2">
-                        <button
-                          onClick={() => setConfirmUnlockTarget(null)}
-                          className="flex-1 py-3 border border-white/10 rounded-xl text-xs font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-all active:scale-95"
-                        >
-                          取消
-                        </button>
-                        <button
-                          onClick={handleConfirmUnlock}
-                          className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-black tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.2)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all active:scale-95"
-                        >
-                          確認扣除並開啟
-                        </button>
+                        <button onClick={() => setConfirmUnlockTarget(null)} className="flex-1 py-3 border border-white/10 rounded-xl text-xs font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-all">取消</button>
+                        <button onClick={handleConfirmUnlock} className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-xs font-black tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.2)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all">確認扣除並開啟</button>
                       </div>
                     </motion.div>
                   </motion.div>
@@ -461,7 +471,6 @@ export default function App() {
                             </div>
                           ) : <div />}
 
-                          {/* 3. 優化右上角解鎖圖示顯示：更鮮明、更有層次 */}
                           <div className={`backdrop-blur-md border px-2.5 py-1 rounded-xl shadow-md transition-colors ${isUnlocked ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-400' : 'bg-cyan-950/60 border-cyan-500/30 text-cyan-400 font-mono'}`}>
                             {isUnlocked ? (
                               <span className="flex items-center gap-1">✓ 已接入</span>
@@ -535,13 +544,22 @@ export default function App() {
                       return (
                         <div key={record.levelIndex} className="grid grid-cols-1 md:grid-cols-[280px_1fr] border border-white/10 rounded-3xl overflow-hidden bg-zinc-900/20 backdrop-blur-md shadow-xl">
                           <div className="relative aspect-[4/3] md:aspect-auto overflow-hidden border-b md:border-b-0 md:border-r border-white/10">
-                            <img 
-                              src={era.imageUrl} 
-                              alt={era.name} 
-                              className="w-full h-full object-cover"
-                              style={{ filter: getFilterString(record.savedFilters) }}
-                              referrerPolicy="no-referrer"
-                            />
+                            <div className="w-full h-full relative overflow-hidden">
+                              <img 
+                                src={era.imageUrl} 
+                                alt={era.name} 
+                                className="w-full h-full object-cover"
+                                style={{ filter: getFilterString(record.savedFilters) }}
+                                referrerPolicy="no-referrer"
+                              />
+                              {/* 2. 圖鑑回顧：同步載入儲存的暗角深度 */}
+                              <div 
+                                className="absolute inset-0 pointer-events-none transition-all"
+                                style={{
+                                  boxShadow: `inset 0 0 ${record.savedFilters.grayscale * 1.2}px rgba(0, 0, 0, ${record.savedFilters.grayscale / 100})`
+                                }}
+                              />
+                            </div>
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                             <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md border border-orange-500/30 px-2.5 py-1 rounded-xl text-xs font-black italic flex items-center gap-1.5 shadow-md">
                               <span className="text-white/40 not-italic text-[10px] font-mono">RANK</span>
@@ -570,11 +588,11 @@ export default function App() {
 
                             <div className="pt-4 border-t border-white/5 flex flex-wrap gap-2 items-center justify-between">
                               <div className="text-[10px] font-mono text-zinc-500">
-                                氛圍特特征碼：T({record.savedFilters.temp}) S({record.savedFilters.saturate}%) G({record.savedFilters.grayscale}%)
+                                氛圍特徵碼：T({record.savedFilters.temp}) S({record.savedFilters.saturate}%) V({record.savedFilters.grayscale}%)
                               </div>
                               <button 
                                 onClick={() => handleLevelCardClick(record.levelIndex)}
-                                className="inline-flex items-center gap-2 text-xs font-bold text-cyan-400 hover:text-white transition-colors uppercase tracking-widest"
+                                className="inline-flex items-center gap-2 text-xs font-bold text-cyan-400 hover:text-white transition-colors uppercase tracking-widest cursor-pointer"
                               >
                                 再次接入本節點修復 <ChevronRight className="w-3 h-3" />
                               </button>
@@ -611,7 +629,7 @@ export default function App() {
                           </div>
                         ))}
                       </div>
-                      <button onClick={() => setShowIntro(false)} className="px-12 py-5 bg-white text-black font-bold uppercase tracking-[0.2em] text-xs hover:bg-orange-500 transition-all">
+                      <button onClick={() => setShowIntro(false)} className="px-12 py-5 bg-white text-black font-bold uppercase tracking-[0.2em] text-xs hover:bg-orange-500 transition-all cursor-pointer">
                         開始修復
                       </button>
                     </motion.div>
@@ -646,7 +664,7 @@ export default function App() {
                           </div>
                         </section>
                       </div>
-                      <button onClick={() => setIsHintOpen(false)} className="w-full mt-10 py-4 rounded-2xl bg-[#e2c38b]/10 border border-[#e2c38b]/20 text-cyan-100 font-bold tracking-[0.25em] text-[10px]">
+                      <button onClick={() => setIsHintOpen(false)} className="w-full mt-10 py-4 rounded-2xl bg-[#e2c38b]/10 border border-[#e2c38b]/20 text-cyan-100 font-bold tracking-[0.25em] text-[10px] cursor-pointer">
                         關閉簡報
                       </button>
                     </motion.div>
@@ -663,34 +681,58 @@ export default function App() {
                       setIsHintOpen(true);
                     }
                   }}
-                  className="relative group w-14 h-14 flex items-center justify-center rounded-sm bg-black/40 border border-white/10 text-amber-300"
+                  className="relative group w-14 h-14 flex items-center justify-center rounded-sm bg-black/40 border border-white/10 text-amber-300 cursor-pointer"
                 >
                   <Lightbulb className="w-7 h-7 fill-current" />
                 </button>
               </div>
 
+              {/* 中央觀測窗 */}
               <div className="flex-1 bg-[#0a0a0c] relative flex items-center justify-center p-4 overflow-hidden">
-                <div className="relative w-full h-full max-w-3xl lg:max-h-[600px] border border-white/10 rounded-sm overflow-hidden bg-zinc-950 flex items-center justify-center">
-                  <div className="w-full h-full" style={{ filter: getFilterString(gameState.playerFilters), transition: 'filter 0.5s ease-out' }}>
-                    <img src={currentEra.imageUrl} alt={currentEra.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <div className="relative w-full h-full max-w-3xl lg:max-h-[600px] border border-white/10 rounded-sm overflow-hidden bg-zinc-950 flex items-center justify-center shadow-2xl">
+                  
+                  <div className="w-full h-full relative overflow-hidden">
+                    <div 
+                      className="w-full h-full" 
+                      style={{ 
+                        filter: getFilterString(gameState.playerFilters), 
+                        transition: 'filter 0.25s ease-out' 
+                      }}
+                    >
+                      <img src={currentEra.imageUrl} alt={currentEra.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+
+                    {/* 2. 核心替代：利用內縮陰影（box-shadow: inset）渲染真正的物理老照片「時光暗角」效果 */}
+                    <div 
+                      className="absolute inset-0 pointer-events-none mix-blend-multiply transition-all duration-150"
+                      style={{ 
+                        // 隨著滑桿拉高，暗角模糊範圍加大（最深 120px 邊界消隱），黑色清晰度同步增強
+                        boxShadow: `inset 0 0 ${gameState.playerFilters.grayscale * 1.2}px rgba(0, 0, 0, ${gameState.playerFilters.grayscale / 100})`
+                      }} 
+                    />
+
                   </div>
                 </div>
               </div>
 
+              {/* 右側調校面板 */}
               <aside className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 p-6 flex flex-col shrink-0">
                 <div className="flex-1 overflow-y-auto pr-1">
                   <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-8 block">氛圍精密校準</label>
                   <div className="space-y-8 mb-6">
-                    <ImmersiveSlider label="色溫" value={gameState.playerFilters.temp} onChange={(v) => handleFilterChange('temp', v)} min={-100} max={100} displayValue={`${gameState.playerFilters.temp > 0 ? '+' : ''}${gameState.playerFilters.temp.toFixed(1)}k`} trackGradient="from-blue-500 via-white to-orange-500" />
-                    <ImmersiveSlider label="飽和度" value={gameState.playerFilters.saturate} onChange={(v) => handleFilterChange('saturate', v)} min={0} max={200} displayValue={`${gameState.playerFilters.saturate.toFixed(1)}%`} />
-                    <ImmersiveSlider label="顆粒感" value={gameState.playerFilters.grayscale} onChange={(v) => handleFilterChange('grayscale', v)} min={0} max={100} displayValue={gameState.playerFilters.grayscale > 50 ? '高' : '低'} />
-                    <ImmersiveSlider label="對比度" value={gameState.playerFilters.contrast} onChange={(v) => handleFilterChange('contrast', v)} min={50} max={150} displayValue={`${gameState.playerFilters.contrast.toFixed(1)}%`} />
-                    <ImmersiveSlider label="曝光度" value={gameState.playerFilters.brightness} onChange={(v) => handleFilterChange('brightness', v)} min={50} max={150} displayValue={`${gameState.playerFilters.brightness.toFixed(1)}%`} />
+                    <ImmersiveSlider label="色溫偏移" value={gameState.playerFilters.temp} onChange={(v) => handleFilterChange('temp', v)} min={-100} max={100} displayValue={gameState.playerFilters.temp > 0 ? ` ${gameState.playerFilters.temp.toFixed(0)}` : gameState.playerFilters.temp < 0 ? `${gameState.playerFilters.temp.toFixed(0)}` : '0'} trackGradient="from-blue-500 via-zinc-400 to-amber-500" />
+                    <ImmersiveSlider label="飽和度" value={gameState.playerFilters.saturate} onChange={(v) => handleFilterChange('saturate', v)} min={0} max={200} displayValue={`${gameState.playerFilters.saturate.toFixed(0)}%`} />
+                    
+                    {/* 2. 正名控制項：更換為時光暗角 */}
+                    <ImmersiveSlider label="暗角" value={gameState.playerFilters.grayscale} onChange={(v) => handleFilterChange('grayscale', v)} min={0} max={100} displayValue={gameState.playerFilters.grayscale === 0 ? '現代數位邊角' : gameState.playerFilters.grayscale > 70 ? '濃烈復古底片感' : '老相機暗角開關'} trackGradient="from-zinc-950 via-zinc-700 to-zinc-100" />
+                    
+                    <ImmersiveSlider label="對比度" value={gameState.playerFilters.contrast} onChange={(v) => handleFilterChange('contrast', v)} min={50} max={150} displayValue={`${gameState.playerFilters.contrast.toFixed(0)}%`} />
+                    <ImmersiveSlider label="曝光度" value={gameState.playerFilters.brightness} onChange={(v) => handleFilterChange('brightness', v)} min={50} max={150} displayValue={`${gameState.playerFilters.brightness.toFixed(0)}%`} />
                   </div>
                 </div>
                 <div className="mt-auto pt-4 space-y-3">
-                  <button onClick={handleRestore} className="w-full py-4.5 bg-orange-600 text-white font-bold tracking-[0.25em] text-xs">還原時代真相</button>
-                  <button onClick={() => setGameState(prev => ({ ...prev, playerFilters: currentEra.initial }))} className="w-full py-3 text-white/30 font-bold tracking-[0.2em] text-[9px]">重設校準數值</button>
+                  <button onClick={handleRestore} className="w-full py-4.5 bg-orange-600 text-white font-bold tracking-[0.25em] text-xs cursor-pointer">還原時代真相</button>
+                  <button onClick={() => setGameState(prev => ({ ...prev, playerFilters: currentEra.initial }))} className="w-full py-3 text-white/30 font-bold tracking-[0.2em] text-[9px] cursor-pointer">重設校準數值</button>
                 </div>
               </aside>
             </motion.div>
@@ -736,7 +778,7 @@ export default function App() {
                     <p className="text-white/60 leading-relaxed italic font-serif">"{currentEra.insight}"</p>
                   </div>
 
-                  <button onClick={handleNext} className="group flex items-center justify-center gap-6 py-5 px-12 bg-white text-black uppercase tracking-[0.3em] font-bold text-xs hover:bg-orange-400 transition-all">
+                  <button onClick={handleNext} className="group flex items-center justify-center gap-6 py-5 px-12 bg-white text-black uppercase tracking-[0.3em] font-bold text-xs hover:bg-orange-400 transition-all cursor-pointer">
                     {gameState.currentLevelIndex + 1 < ERAS.length ? '前往下一歷史檔案' : '返回視覺檔案庫選單'}
                     <ArrowRight className="w-5 h-5" />
                   </button>
@@ -745,11 +787,21 @@ export default function App() {
                 <div className="space-y-6">
                   <div className="relative">
                     <div className="absolute top-4 left-4 z-20 px-3 py-1 bg-black/80 border border-white/10 rounded text-[10px] uppercase tracking-widest font-bold text-white/60">您的修復成果</div>
-                    <div className="rounded-sm overflow-hidden aspect-[4/3] border border-white/20"><img src={currentEra.imageUrl} alt="成果" className="w-full h-full object-cover" style={{ filter: getFilterString(gameState.playerFilters) }} referrerPolicy="no-referrer" /></div>
+                    <div className="rounded-sm overflow-hidden aspect-[4/3] border border-white/20">
+                      <div className="w-full h-full relative overflow-hidden">
+                        <img src={currentEra.imageUrl} alt="成果" className="w-full h-full object-cover" style={{ filter: getFilterString(gameState.playerFilters) }} referrerPolicy="no-referrer" />
+                        <div className="absolute inset-0 pointer-events-none mix-blend-multiply" style={{ boxShadow: `inset 0 0 ${gameState.playerFilters.grayscale * 1.2}px rgba(0, 0, 0, ${gameState.playerFilters.grayscale / 100})` }} />
+                      </div>
+                    </div>
                   </div>
                   <div className="relative">
                     <div className="absolute top-4 left-4 z-20 px-3 py-1 bg-orange-600 text-white rounded text-[10px] uppercase tracking-widest font-bold">歷史真實色彩 (100%)</div>
-                    <div className="rounded-sm overflow-hidden aspect-[4/3] border border-orange-500/40"><img src={currentEra.imageUrl} alt="目標" className="w-full h-full object-cover" style={{ filter: getFilterString(currentEra.target) }} referrerPolicy="no-referrer" /></div>
+                    <div className="rounded-sm overflow-hidden aspect-[4/3] border border-orange-500/40">
+                      <div className="w-full h-full relative overflow-hidden">
+                        <img src={currentEra.imageUrl} alt="目標" className="w-full h-full object-cover" style={{ filter: getFilterString(currentEra.target) }} referrerPolicy="no-referrer" />
+                        <div className="absolute inset-0 pointer-events-none mix-blend-multiply" style={{ boxShadow: `inset 0 0 ${currentEra.target.grayscale * 1.2}px rgba(0, 0, 0, ${currentEra.target.grayscale / 100})` }} />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
