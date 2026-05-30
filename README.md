@@ -27,13 +27,28 @@
 ## 專案結構
 ```text
 src/
-├── assets/          # 靜態資源與圖片
-├── components/      # 共用元件
-├── constants.ts     # 關卡資料與歷史節點設定
-├── types.ts         # 核心型別定義 (GameState, Filters, Era)
-├── App.tsx          # 主遊戲邏輯與狀態管理
-├── index.css        # 全域樣式
-└── main.tsx         # 應用程式進入點
+├── components/                          # 可重複使用的介面元件
+│   ├── modals/                          # 彈出式視窗元件
+│   │   ├── EraIntro.tsx                 # 時代背景介紹視窗
+│   │   ├── Hint.tsx                     # 提示視窗
+│   │   ├── HintUnlock.tsx               # 提示解鎖通知視窗
+│   │   ├── Shortage.tsx                 # 資源不足警告視窗
+│   │   ├── Success.tsx                  # 闖關成功視窗
+│   │   └── Unlock.tsx                   # 內容解鎖通知視窗
+│   │
+│   ├── screens/                         # 主要頁面畫面
+│   │   ├── Archives.tsx                 # 歷史檔案頁面
+│   │   ├── Gallery.tsx                  # 圖庫頁面
+│   │   ├── Result.tsx                   # 遊戲結果頁面
+│   │   └── Welcome.tsx                  # 歡迎與開始頁面
+│   │
+│   └── ImmersiveSlider.tsx              # 沉浸式滑桿互動元件
+│
+├── constants.ts                         # 歷史時代、關卡與遊戲資料設定
+├── types.ts                             # 遊戲狀態與資料型別定義
+├── App.tsx                              # 遊戲主程式與畫面切換控制
+├── index.css                            # 全域樣式設定
+└── main.tsx                             # 應用程式進入點
 ```
 
 ## 開發環境配置
