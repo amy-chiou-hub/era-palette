@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Camera, 
-  RotateCcw, 
-  ArrowRight, 
-  MapPin, 
-  Clock, 
+import {
+  Camera,
+  RotateCcw,
+  ArrowRight,
+  MapPin,
+  Clock,
   Sparkles,
   ChevronRight,
   History,
@@ -37,12 +37,12 @@ interface RepairRecord {
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>({
-    stage: 'welcome', 
+    stage: 'welcome',
     currentLevelIndex: 0,
     playerFilters: ERAS[0].initial,
     score: null,
     hintsUsed: 0,
-    coins: 0, 
+    coins: 0,
     earnedCoins: 0,
     breakdown: null,
   });
@@ -51,12 +51,14 @@ export default function App() {
   const [unlockedLevels, setUnlockedLevels] = useState<number[]>([0, 1, 2]); // 前 3 關免費
   const [showIntro, setShowIntro] = useState(false);
   const [isHintOpen, setIsHintOpen] = useState(false);
-  
+  const [revealedHints, setRevealedHints] = useState(1);
+
   // 檢視真實背景的狀態與次數限制 (每關限 2 次)
   const [isPeekingTarget, setIsPeekingTarget] = useState(false);
+  const [confirmHintUnlock, setConfirmHintUnlock] = useState(false);
   const [peekCount, setPeekCount] = useState<number>(0);
   const maxPeeks = 2;
-  
+
   // 視窗控制狀態
   const [confirmUnlockTarget, setConfirmUnlockTarget] = useState<{ index: number; name: string; required: number } | null>(null);
   const [shortageTarget, setShortageTarget] = useState<{ name: string; required: number; missing: number } | null>(null);
@@ -70,7 +72,7 @@ export default function App() {
 
   const getRequiredFragments = (index: number) => {
     if (index <= 2) return 0;
-    return (index - 2) * 5; 
+    return (index - 2) * 5;
   };
 
   const calculateScoreBreakdown = (player: Filters, target: Filters) => {
@@ -82,7 +84,7 @@ export default function App() {
     const warmthScore = calc(player.temp, target.temp, 50);
     const colorScore = Math.round((calc(player.saturate, target.saturate, 60) + calc(player.grayscale, target.grayscale, 40)) / 2);
     const textureScore = Math.round((calc(player.contrast, target.contrast, 40) + calc(player.brightness, target.brightness, 40)) / 2);
-    
+
     const total = Math.round((warmthScore * 0.4) + (colorScore * 0.3) + (textureScore * 0.3));
     return { total, breakdown: { warmth: warmthScore, color: colorScore, texture: textureScore } };
   };
@@ -140,6 +142,7 @@ export default function App() {
     setIsPeekingTarget(false);
     setPeekCount(0);
     setIsHintOpen(false);
+    setRevealedHints(1);
   };
 
   const handleFilterChange = (key: keyof Filters, value: number) => {
@@ -198,7 +201,7 @@ export default function App() {
     if (nextIndex < ERAS.length) {
       const required = getRequiredFragments(nextIndex);
       const isAlreadyUnlocked = unlockedLevels.includes(nextIndex) || nextIndex <= 2;
-      
+
       if (isAlreadyUnlocked) {
         enterLevel(nextIndex);
       } else if (gameState.coins >= required) {
@@ -221,8 +224,8 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen text-[#f3efe8] font-sans selection:bg-amber-200/20 overflow-hidden flex flex-col antialiased relative bg-[#040406]">      
-      
+    <div className="min-h-screen text-[#f3efe8] font-sans selection:bg-amber-200/20 overflow-y-auto flex flex-col antialiased relative bg-[#040406]">
+
       {/* 頂部導覽列 */}
       {gameState.stage !== 'welcome' && (
         <header className="h-16 shrink-0 border-b border-white/10 px-4 md:px-8 flex items-center justify-between bg-[#111114]/70 backdrop-blur-2xl z-50 shadow-[0_0_40px_rgba(0,180,255,0.08)]">
@@ -236,10 +239,10 @@ export default function App() {
             </button>
             <div className="w-px h-4 bg-white/10"></div>
           </div>
-          
+
           <div className="flex items-center gap-3 md:gap-4">
             {gameState.stage !== 'gallery' && (
-              <button 
+              <button
                 onClick={() => setGameState(prev => ({ ...prev, stage: 'gallery' }))}
                 className="flex items-center gap-2 px-3.5 py-2 border border-cyan-500/20 rounded-2xl bg-cyan-500/5 text-xs font-bold tracking-widest text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-400/40 transition-all shadow-[0_0_15px_rgba(6,182,212,0.05)] active:scale-95"
               >
@@ -294,7 +297,7 @@ export default function App() {
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} className="max-w-md w-full bg-[#121216] border border-white/10 rounded-2xl p-6 space-y-4">
               <h3 className="text-lg font-black text-cyan-400 border-b border-white/5 pb-2">調閱權限確認</h3>
               <p className="text-zinc-300 text-sm">確定要解鎖歷史時空節點：<strong className="text-white">「{confirmUnlockTarget.name}」</strong>嗎？</p>
-              
+
               <div className="p-4 rounded-xl bg-zinc-900/60 border border-white/5 space-y-3 font-mono text-xs text-zinc-400">
                 <div className="flex justify-between items-center">
                   <span>當前終端餘額:</span>
@@ -317,6 +320,119 @@ export default function App() {
             </motion.div>
           </motion.div>
         )}
+        {confirmHintUnlock && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="
+                fixed inset-0 z-50
+                bg-black/70
+                backdrop-blur-md
+                flex items-center justify-center
+                p-4
+              "
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              className="
+                  max-w-md w-full
+                  bg-[#121216]
+                  border border-white/10
+                  rounded-2xl
+                  p-6
+                "
+            >
+              <h3 className="text-lg font-black text-cyan-400 mb-4">
+                歷史資料解析確認
+              </h3>
+
+              <p className="text-zinc-300 text-sm mb-4">
+                解析更多歷史資料需要消耗
+                <span className="text-[#e2c38b] font-bold">
+                  1 個時光碎片
+                </span>
+              </p>
+
+              <div className="p-4 rounded-xl bg-zinc-900/60 border border-white/5 space-y-3 text-xs">
+
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">
+                    目前持有
+                  </span>
+
+                  <span className="text-white font-bold">
+                    {gameState.coins} 碎片
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-red-400">
+                  <span>解析消耗</span>
+                  <span>-1 碎片</span>
+                </div>
+
+                <div className="flex justify-between text-emerald-400 font-bold border-t border-white/10 pt-2">
+                  <span>剩餘</span>
+                  <span>{gameState.coins - 1} 碎片</span>
+                </div>
+
+              </div>
+
+              <div className="flex gap-3 mt-6">
+
+                <button
+                  onClick={() => setConfirmHintUnlock(false)}
+                  className="
+                      flex-1
+                      py-3
+                      border border-white/10
+                      rounded-xl
+                      text-zinc-400
+                    "
+                >
+                  取消
+                </button>
+
+                <button
+                  onClick={() => {
+
+                    if (gameState.coins > 0) {
+
+                      setGameState(prev => ({
+                        ...prev,
+                        coins: prev.coins - 1
+                      }));
+
+                      setRevealedHints(prev => prev + 1);
+                    }
+
+                    setConfirmHintUnlock(false);
+
+                    setTimeout(() => {
+                      setIsHintOpen(true);
+                    }, 100);
+                  }}
+                  className="
+                      flex-1
+                      py-3
+                      rounded-xl
+                      bg-gradient-to-r
+                      from-cyan-500
+                      to-blue-600
+                      text-white
+                      font-bold
+                    "
+                >
+                  確認解析
+                </button>
+
+              </div>
+
+            </motion.div>
+          </motion.div>
+        )}
 
         {successTarget && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
@@ -326,16 +442,168 @@ export default function App() {
               </div>
               <h3 className="text-xl font-black text-emerald-400">時光節點接入成功</h3>
               <p className="text-zinc-400 text-sm">「{successTarget.name}」通道已建立！已消耗 {successTarget.consumed} 碎片。</p>
-              <button 
+              <button
                 onClick={() => {
                   const targetIndex = successTarget.index;
                   setSuccessTarget(null);
                   enterLevel(targetIndex);
-                }} 
+                }}
                 className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold rounded-xl text-xs tracking-widest cursor-pointer shadow-lg"
               >
                 立刻接入主機
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {isHintOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="
+                      fixed inset-0 z-[100]
+                      bg-black/70
+                      backdrop-blur-md
+                      flex
+                      items-center
+                      justify-center
+                      p-4
+                    "
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="
+                              max-w-3xl
+                              w-full
+                              bg-[#111114]
+                              border border-white/5
+                              rounded-2xl
+                              p-6
+                            "
+            >
+              <div className="border-b border-cyan-500/20 pb-3 mb-4">
+                <div className="space-y-2 mb-6">
+
+                  <div className="flex justify-between text-xs text-zinc-400">
+                    <span>資料解析度</span>
+
+                    <span>
+                      {Math.round(
+                        (revealedHints / currentEra.clues.length) * 100
+                      )}%
+                    </span>
+                  </div>
+
+                  <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 to-[#e2c38b]"
+                      style={{
+                        width: `${(revealedHints / currentEra.clues.length) * 100
+                          }%`
+                      }}
+                    />
+
+                  </div>
+
+                </div>
+                <h3 className="text-3xl font-black text-white">
+                  歷史分析報告
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {currentEra.clues
+                  .slice(0, revealedHints)
+                  .map((clue, index) => (
+
+                    <div
+                      key={index}
+                      className="
+                                    p-4
+                                    rounded-xl
+                                    bg-black/40
+                                    border
+                                    border-white/5
+                                  "
+                    >
+
+                      <div className="text-[#e2c38b] text-xs font-bold mb-2">
+                        提示 {index + 1}
+                      </div>
+
+                      <p className="text-zinc-300 text-sm leading-relaxed">
+                        {clue}
+                      </p>
+
+                    </div>
+
+
+                  ))}
+
+              </div>
+              {revealedHints < currentEra.clues.length && (
+
+                <button
+                  onClick={() => {
+                    setIsHintOpen(false);
+                      if (gameState.coins < 1) {
+
+                        setShortageTarget({
+                          name: "更多歷史資料解析",
+                          required: 1,
+                          missing: 1 - gameState.coins
+                        });
+
+                        return;
+                      }
+                    setConfirmHintUnlock(true);
+                  }}
+                  className="
+                                    mt-6
+                                    w-full
+                                    py-3
+                                    border
+                                    border-cyan-500/20
+                                    rounded-xl
+                                    bg-cyan-500/5
+                                    text-cyan-300
+                                    font-bold
+                                    tracking-wider
+                                    hover:bg-cyan-500/10
+                                    transition-all
+                                  "
+                >
+                  解析更多資料(-1碎片)
+                </button>
+
+              )}
+
+              <div className="flex justify-end mt-6">
+
+                <button
+                  onClick={() => setIsHintOpen(false)}
+                  className="
+                                    px-6
+                                    py-2.5
+                                    border
+                                    border-white/10
+                                    rounded-xl
+                                    bg-white/[0.02]
+                                    text-zinc-400
+                                    hover:text-white
+                                    hover:bg-white/[0.05]
+                                    transition-all
+                                  "
+                >
+                  返回分析介面
+                </button>
+
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -344,7 +612,7 @@ export default function App() {
       {/* 主畫面框架區 */}
       <main className="flex-1 relative flex overflow-hidden">
         <AnimatePresence mode="wait">
-          
+
           {/* Welcome 歡迎首頁 */}
           {gameState.stage === 'welcome' && (
             <motion.div
@@ -352,7 +620,14 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: -30 }}
-              className="w-full h-full flex flex-col items-center justify-center p-6 bg-[radial-gradient(circle_at_center,_rgba(14,14,22,0.7),_rgba(4,4,5,1))] relative overflow-hidden"
+              className="
+                        w-full
+                        min-h-screen
+                        flex
+                        flex-col
+                        items-center
+                        justify-center
+                        p-6 bg-[radial-gradient(circle_at_center,_rgba(14,14,22,0.7),_rgba(4,4,5,1))] relative overflow-hidden"
             >
               {/* 時空穿梭漂浮粒子 */}
               <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
@@ -397,7 +672,7 @@ export default function App() {
 
               <div className="max-w-4xl w-full text-center space-y-12 z-10 py-8 relative">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[180px] bg-gradient-to-r from-amber-500/15 via-cyan-500/10 to-purple-500/15 blur-[90px] pointer-events-none rounded-full animate-pulse duration-[6s]" />
-                
+
                 <div className="space-y-4">
                   <h1 className="text-7xl sm:text-8xl md:text-[7.5rem] font-black tracking-[0.12em] text-white uppercase leading-none pl-[0.12em]">
                     時代<span className="bg-gradient-to-r from-[#e2c38b] via-[#d4bfff] to-[#8fa7c7] bg-clip-text text-transparent">影像館</span>
@@ -407,7 +682,7 @@ export default function App() {
                     <span>歷史影像與色彩氛圍修復系統</span>
                   </div>
                 </div>
-                
+
                 <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center items-center max-w-md mx-auto w-full">
                   <motion.button
                     whileHover={{ scale: 1.03 }}
@@ -418,7 +693,7 @@ export default function App() {
                     <Play className="w-3.5 h-3.5 fill-black" />
                     進入時代檔案庫
                   </motion.button>
-                  
+
                   <motion.button
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
@@ -455,19 +730,19 @@ export default function App() {
                     const isUnlocked = unlockedLevels.includes(index) || index <= 2;
                     const isLocked = !isUnlocked && gameState.coins < requiredFragments;
                     const hasRecord = repairRecords[index];
-                    
+
                     return (
                       <motion.div
                         key={era.id}
                         whileHover={(!isLocked || isUnlocked) ? { y: -8 } : {}}
                         // 🔥 修正核心 2：只要是解鎖或免費關卡，強制套用 cursor-pointer 確保滑鼠手指游標出現
                         className={`group relative aspect-[3/4] overflow-hidden border rounded-3xl backdrop-blur-xl transition-all duration-500 shadow-xl
-                          ${isUnlocked ? 'border-white/10 bg-white/[0.04] cursor-pointer' : isLocked ? 'border-white/5 bg-black/40 cursor-not-allowed opacity-60' : 'border-white/10 bg-white/[0.02] cursor-pointer'}`}      
+                          ${isUnlocked ? 'border-white/10 bg-white/[0.04] cursor-pointer' : isLocked ? 'border-white/5 bg-black/40 cursor-not-allowed opacity-60' : 'border-white/10 bg-white/[0.02] cursor-pointer'}`}
                         onClick={() => handleLevelCardClick(index)}
                       >
                         <img src={era.imageUrl} className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 opacity-40 ${(isUnlocked || !isLocked) ? 'group-hover:scale-105 group-hover:opacity-70' : 'grayscale opacity-10 filter blur-[2px]'}`} referrerPolicy="no-referrer" alt={era.name} />
                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
-                        
+
                         <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-center text-[10px] font-bold">
                           {hasRecord ? (
                             <div className="flex items-center gap-1 bg-black/70 px-2 py-0.5 rounded border border-orange-500/30">
@@ -519,7 +794,7 @@ export default function App() {
                     </h1>
                     <p className="text-xs text-zinc-400">檢視已解鎖關卡的完美快照與歷史評級，並可選定關卡再次進行精密修復</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setGameState(prev => ({ ...prev, stage: 'menu' }))}
                     className="flex items-center gap-1.5 px-4 py-2 border border-white/10 rounded-xl text-xs bg-white/[0.02] hover:bg-white/[0.05] text-zinc-300 transition-all cursor-pointer"
                   >
@@ -557,10 +832,10 @@ export default function App() {
                                 <div>對比: {record.savedFilters.contrast}%</div>
                               </div>
                             </div>
-                            
+
                             <div className="flex justify-between items-center mt-3 pt-2 border-t border-white/5">
                               <span className="text-[10px] text-zinc-500 font-mono">最高分: {record.highestScore}%</span>
-                              <button 
+                              <button
                                 onClick={() => enterLevel(record.levelIndex)}
                                 className="flex items-center gap-1 text-[10px] text-cyan-400 font-bold hover:text-white transition-colors cursor-pointer"
                               >
@@ -580,26 +855,30 @@ export default function App() {
 
           {/* 遊戲操作主畫面 */}
           {gameState.stage === 'level' && (
-            <motion.div key="level" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full flex flex-col lg:flex-row h-full overflow-hidden relative">
-              
+            <motion.div key="level" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full flex flex-col lg:flex-row min-h-full relative">
+
               {/* 前導簡報彈窗 */}
               <AnimatePresence>
                 {showIntro && (
-                  <motion.div 
-                    initial={{ opacity: 0 }} 
-                    animate={{ opacity: 1 }} 
-                    exit={{ opacity: 0 }} 
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
                     className="absolute inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4 md:p-6"
                   >
-                    <motion.div 
-                      initial={{ scale: 0.92, y: 15 }} 
+                    <motion.div
+                      initial={{ scale: 0.92, y: 15 }}
                       animate={{ scale: 1, y: 0 }}
                       exit={{ scale: 0.95, y: -10 }}
-                      className="max-w-lg w-full bg-[#0c0c10]/90 border border-white/10 p-8 rounded-3xl relative overflow-hidden shadow-[0_0_80px_rgba(226,195,139,0.1)] text-center space-y-6"
+                      className="max-w-4xl
+                                  w-full
+                                  max-h-[85vh]
+                                  overflow-y-auto
+                                  bg-[#0c0c10]/90 border border-white/10 p-8 rounded-3xl relative overflow-hidden shadow-[0_0_80px_rgba(226,195,139,0.1)] text-center space-y-6"
                       style={{ zIndex: 9999 }}
                     >
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 bg-amber-500/10 rounded-full blur-[50px] pointer-events-none" />
-                      
+
                       <div className="flex items-center justify-center gap-2">
                         <div className="h-px w-8 bg-gradient-to-r from-transparent to-white/20" />
                         <span className="text-[10px] uppercase tracking-[0.4em] text-amber-300/80 font-mono font-bold flex items-center gap-1.5">
@@ -620,14 +899,37 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="relative p-4 rounded-xl bg-black/40 border border-white/5 text-left">
-                        <p className="text-zinc-300 leading-relaxed text-xs md:text-sm text-center font-normal px-2">
-                          {currentEra.description}
-                        </p>
+                      <div className="space-y-4 text-left">
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                          {/* 歷史背景 */}
+                          <div className="p-4 rounded-xl bg-black/40 border border-white/5">
+                            <h4 className="text-cyan-400 text-xs font-bold mb-2 tracking-wider">
+                              歷史影像背景
+                            </h4>
+
+                            <p className="text-zinc-300 text-sm leading-relaxed">
+                              {currentEra.description}
+                            </p>
+                          </div>
+
+                          {/* 色彩分析 */}
+                          <div className="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/20">
+                            <h4 className="text-cyan-300 text-xs font-bold mb-2 tracking-wider">
+                              色彩分析
+                            </h4>
+
+                            <p className="text-zinc-300 text-sm leading-relaxed">
+                              {currentEra.insight}
+                            </p>
+                          </div>
+
+                        </div>
                       </div>
 
                       <div className="pt-2">
-                       <motion.button
+                        <motion.button
                           whileHover={{ scale: 1.03 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => setShowIntro(false)}
@@ -638,7 +940,7 @@ export default function App() {
                           className="px-10 py-3.5 bg-gradient-to-r from-[#e2c38b] to-[#b39768] text-black font-black uppercase tracking-[0.25em] text-xs rounded-xl shadow-lg cursor-pointer hover:brightness-110 transition-all"
                         >
                           調閱歷史影像
-                       </motion.button>
+                        </motion.button>
                       </div>
                     </motion.div>
                   </motion.div>
@@ -646,29 +948,29 @@ export default function App() {
               </AnimatePresence>
 
               {/* 核心畫布觀測區 */}
-              <div className="flex-1 bg-[#0a0a0c] relative flex items-center justify-center p-4 overflow-hidden">
+              <div className="flex-1 bg-[#0a0a0c] relative flex items-center justify-center p-4 ">
                 <div className="relative w-full h-full max-w-2xl lg:max-h-[500px] border border-white/10 rounded-sm overflow-hidden bg-zinc-950 flex items-center justify-center shadow-2xl">
                   <div className="w-full h-full relative overflow-hidden">
-                    <div 
-                      className="w-full h-full" 
-                      style={{ 
-                        filter: getFilterString(isPeekingTarget ? currentEra.target : gameState.playerFilters), 
-                        transition: 'filter 0.1s ease-out' 
+                    <div
+                      className="w-full h-full"
+                      style={{
+                        filter: getFilterString(isPeekingTarget ? currentEra.target : gameState.playerFilters),
+                        transition: 'filter 0.1s ease-out'
                       }}
                     >
                       <img src={currentEra.imageUrl} alt="歷史觀測影像" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
-                    
-                    <div 
-                      className="absolute inset-0 pointer-events-none mix-blend-multiply" 
-                      style={{ 
-                        boxShadow: `inset 0 0 ${ (isPeekingTarget ? currentEra.target.grayscale : gameState.playerFilters.grayscale) * 1.2}px rgba(0, 0, 0, ${(isPeekingTarget ? currentEra.target.grayscale : gameState.playerFilters.grayscale) / 100})` 
-                      }} 
+
+                    <div
+                      className="absolute inset-0 pointer-events-none mix-blend-multiply"
+                      style={{
+                        boxShadow: `inset 0 0 ${(isPeekingTarget ? currentEra.target.grayscale : gameState.playerFilters.grayscale) * 1.2}px rgba(0, 0, 0, ${(isPeekingTarget ? currentEra.target.grayscale : gameState.playerFilters.grayscale) / 100})`
+                      }}
                     />
 
                     <AnimatePresence>
                       {isPeekingTarget && (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
@@ -679,13 +981,14 @@ export default function App() {
                         </motion.div>
                       )}
                     </AnimatePresence>
+
                   </div>
                 </div>
               </div>
 
               {/* 右側操控滑桿邊欄 */}
-              <aside className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 p-6 flex flex-col shrink-0 bg-[#0d0d11]/80">
-                <div className="flex-1 overflow-y-auto pr-1">
+              <aside className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/10 p-6 flex flex-col bg-[#0d0d11]/80">
+                <div className="flex-1 lg:overflow-y-auto pr-1">
                   <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-6 block font-bold">氛圍精密校準</label>
                   <div className="space-y-6 mb-6">
                     <ImmersiveSlider label="色溫偏移" value={gameState.playerFilters.temp} onChange={(v) => handleFilterChange('temp', v)} min={-100} max={100} displayValue={gameState.playerFilters.temp > 0 ? `+${gameState.playerFilters.temp.toFixed(0)}` : `${gameState.playerFilters.temp.toFixed(0)}`} trackGradient="from-blue-500 via-zinc-400 to-amber-500" />
@@ -695,37 +998,108 @@ export default function App() {
                     <ImmersiveSlider label="曝光度" value={gameState.playerFilters.brightness} onChange={(v) => handleFilterChange('brightness', v)} min={50} max={150} displayValue={`${gameState.playerFilters.brightness.toFixed(0)}%`} />
                   </div>
                 </div>
-                
+
                 <div className="mt-auto pt-4 space-y-3 border-t border-white/5">
-                  <button 
+
+                  {/* 查看真實色彩 */}
+                  <button
                     disabled={peekCount >= maxPeeks}
                     onMouseDown={handleStartPeek}
                     onMouseUp={handleEndPeek}
                     onMouseLeave={handleEndPeek}
                     onTouchStart={handleStartPeek}
                     onTouchEnd={handleEndPeek}
-                    className={`w-full py-3 border rounded-xl text-[10px] font-bold tracking-widest flex items-center justify-center gap-2 select-none transition-all
-                      ${peekCount >= maxPeeks 
-                        ? 'bg-zinc-900 border-zinc-800 text-zinc-600 cursor-not-allowed opacity-50' 
-                        : isPeekingTarget 
-                          ? 'bg-orange-500/20 border-orange-500 text-white cursor-pointer active:scale-[0.98]' 
-                          : 'bg-white/[0.02] border-white/10 text-zinc-400 hover:text-white hover:bg-white/[0.05] cursor-pointer active:scale-[0.98]'}`}
+                    className={`
+                      w-full
+                      py-3
+                      border
+                      rounded-xl
+                      text-[10px]
+                      font-bold
+                      tracking-widest
+                      flex
+                      items-center
+                      justify-center
+                      gap-2
+                      transition-all
+
+                      ${peekCount >= maxPeeks
+                        ? 'bg-zinc-900 border-zinc-800 text-zinc-600'
+                        : 'bg-white/[0.02] border-white/10 text-zinc-300 hover:bg-white/[0.05]'
+                      }
+                    `}
                   >
-                    {peekCount >= maxPeeks ? (
-                      <>
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>已達本關觀測上限 ({maxPeeks - peekCount}/{maxPeeks})</span>
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>長按查看真實色彩 ({maxPeeks - peekCount}/{maxPeeks})</span>
-                      </>
-                    )}
+                    <Eye className="w-3.5 h-3.5" />
+                    長按查看真實色彩
+                    <span className="text-cyan-400 ml-1">
+                      ({maxPeeks - peekCount}/{maxPeeks})
+                    </span>
                   </button>
 
-                  <button onClick={handleRestore} className="w-full py-4 bg-orange-600 text-white font-bold tracking-[0.25em] text-xs cursor-pointer shadow-lg hover:bg-orange-500 transition-colors rounded-xl">還原時代真相</button>
-                  <button onClick={() => setGameState(prev => ({ ...prev, playerFilters: currentEra.initial }))} className="w-full py-1 text-white/30 font-bold tracking-[0.2em] text-[9px] cursor-pointer hover:text-white/50">重設校準數值</button>
+                  {/* 下面兩個按鈕 */}
+                  <div className="grid grid-cols-2 gap-3">
+
+                    {/* 修復提示 */}
+                    <button
+                      onClick={() => setIsHintOpen(true)}
+                      className="
+                        py-3
+                        rounded-xl
+                        border
+                        border-amber-500/20
+                        bg-amber-500/5
+                        text-amber-300
+                        text-[10px]
+                        font-bold
+                        tracking-widest
+                        hover:bg-amber-500/10
+                        transition-all
+                      "
+                    >
+                      修復提示
+                    </button>
+
+
+                    {/* 還原時代真相 */}
+                    <button
+                      onClick={handleRestore}
+                      className="
+                        py-3
+                        rounded-xl
+                        bg-orange-600
+                        text-white
+                        text-[10px]
+                        font-bold
+                        tracking-widest
+                        hover:bg-orange-500
+                        transition-all
+                      "
+                    >
+                      還原時代真相
+                    </button>
+
+                  </div>
+
+                  {/* 重設 */}
+                  <button
+                    onClick={() =>
+                      setGameState(prev => ({
+                        ...prev,
+                        playerFilters: currentEra.initial
+                      }))
+                    }
+                    className="
+                      w-full
+                      py-1
+                      text-white/30
+                      font-bold
+                      tracking-[0.2em]
+                      text-[9px]
+                      hover:text-white/50
+                    "
+                  >
+                    重設校準數值
+                  </button>
                 </div>
               </aside>
             </motion.div>
@@ -830,7 +1204,7 @@ export default function App() {
 }
 
 // 滑桿元件
-function ImmersiveSlider({ label, value, onChange, min, max, displayValue, trackGradient }: { 
+function ImmersiveSlider({ label, value, onChange, min, max, displayValue, trackGradient }: {
   label: string, value: number, onChange: (v: number) => void, min: number, max: number, displayValue?: string, trackGradient?: string
 }) {
   const percentage = ((value - min) / (max - min)) * 100;
