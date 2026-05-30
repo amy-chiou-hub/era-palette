@@ -21,7 +21,6 @@ export interface Era {
 }
 
 export interface GameState {
-  // 在這裡加入了 'welcome' 和 'gallery'，告訴 TypeScript 這些是合法的畫面狀態
   stage: 'welcome' | 'menu' | 'level' | 'result' | 'gallery';
   currentLevelIndex: number;
   playerFilters: Filters;
