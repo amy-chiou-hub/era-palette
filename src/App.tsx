@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import ImmersiveSlider from "./components/ImmersiveSlider";
-import ShortageModal from './components/modals/ShortageModal';
-import UnlockModal from './components/modals/UnlockModal';
-import SuccessModal from "./components/modals/SuccessModal";
-import HintUnlockModal from "./components/modals/HintUnlockModal";
-import HintModal from "./components/modals/HintModal";
-import EraIntroModal from "./components/modals/EraIntroModal";
-import WelcomeScreen from './components/screens/WelcomeScreen';
-import ArchiveScreen from './components/screens/ArchivesScreen';
-import GalleryScreen from './components/screens/GalleryScreens';
-import ResultScreen from './components/screens/ResultScreens';
+import Shortage from './components/modals/Shortage';
+import Unlock from './components/modals/Unlock';
+import Success from "./components/modals/Success";
+import HintUnlock from "./components/modals/HintUnlock";
+import Hint from "./components/modals/Hint";
+import EraIntro from "./components/modals/EraIntro";
+import Welcome from './components/screens/Welcome';
+import Archive from './components/screens/Archives';
+import Gallery from './components/screens/Gallery';
+import Result from './components/screens/Result';
 import { Coins, Home, BookOpen, Eye, } from 'lucide-react';
 import { ERAS } from './constants';
 import { GameState, Filters } from './types';
@@ -262,7 +262,7 @@ export default function App() {
       {/*Welcome*/}
       {gameState.stage === 'welcome' && (
 
-        <WelcomeScreen
+        <Welcome
           onStart={() =>
             setGameState(prev => ({
               ...prev,
@@ -285,24 +285,24 @@ export default function App() {
 
       {/* Modals */}
       <AnimatePresence>
-        <ShortageModal
+        <Shortage
           shortageTarget={shortageTarget}
           onClose={() => setShortageTarget(null)}
         />
-        <UnlockModal
+        <Unlock
           confirmUnlockTarget={confirmUnlockTarget}
           coins={gameState.coins}
           onClose={() => setConfirmUnlockTarget(null)}
           onConfirm={handleConfirmUnlock}
         />
-        <SuccessModal
+        <Success
           successTarget={successTarget}
           onEnter={(index) => {
             setSuccessTarget(null);
             enterLevel(index);
           }}
         />
-        <HintModal
+        <Hint
           isOpen={isHintOpen}
           clues={currentEra.clues}
           revealedHints={revealedHints}
@@ -322,7 +322,7 @@ export default function App() {
             setConfirmHintUnlock(true);
           }}
         />
-        <HintUnlockModal
+        <HintUnlock
           isOpen={confirmHintUnlock}
           coins={gameState.coins}
           onClose={() => setConfirmHintUnlock(false)}
@@ -338,7 +338,7 @@ export default function App() {
             }, 100);
           }}
         />
-        <EraIntroModal
+        <EraIntro
           isOpen={showIntro}
           era={currentEra}
           onClose={() => setShowIntro(false)}
@@ -351,7 +351,7 @@ export default function App() {
 
           {/* Menu */}
           {gameState.stage === 'menu' && (
-            <ArchiveScreen
+            <Archive
               coins={gameState.coins}
               unlockedLevels={unlockedLevels}
               repairRecords={repairRecords}
@@ -362,7 +362,7 @@ export default function App() {
           {/*Gallery*/}
           {gameState.stage === "gallery" && (
 
-            <GalleryScreen
+            <Gallery
               repairRecords={repairRecords}
               onBack={() =>
                 setGameState(prev => ({
@@ -540,7 +540,7 @@ export default function App() {
           )}
           {/*Result*/}
           {gameState.stage === 'result' && (
-            <ResultScreen
+            <Result
               currentLevelIndex={
                 gameState.currentLevelIndex
               }
