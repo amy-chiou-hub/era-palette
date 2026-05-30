@@ -34,3 +34,19 @@ export interface GameState {
     texture: number;
   } | null;
 }
+
+export interface RepairRecord {
+  levelIndex: number;
+  highestScore: number;
+  rating: string;
+  ratingColor: string;
+  savedFilters: Filters;
+}
+
+export interface RepairRecord {
+  levelIndex: number;
+  highestScore: number;
+  rating: string;
+  ratingColor: string;
+  savedFilters: Filters;
+}
