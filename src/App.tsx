@@ -471,8 +471,7 @@ export default function App() {
                   </button>
 
                   {/* 下面兩個按鈕 */}
-                  <div className="grid grid-cols-2 gap-3">
-
+                  <div className="grid grid-cols-3 gap-3">
                     {/* 修復提示 */}
                     <button
                       onClick={() => setIsHintOpen(true)}
@@ -493,7 +492,24 @@ export default function App() {
                       修復提示
                     </button>
 
-
+                    <button
+                      onClick={() => setShowIntro(true)}
+                      className="
+                        py-3
+                        rounded-xl
+                        border
+                        border-cyan-500/20
+                        bg-cyan-500/5
+                        text-cyan-300
+                        text-[10px]
+                        font-bold
+                        tracking-widest
+                        hover:bg-cyan-500/10
+                        transition-all
+                      "
+                    >
+                      歷史背景
+                    </button>
                     {/* 還原時代真相 */}
                     <button
                       onClick={handleRestore}

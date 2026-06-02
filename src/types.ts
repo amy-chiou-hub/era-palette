@@ -12,10 +12,18 @@ export interface Era {
   name: string;
   year: string;
   location: string;
+
   description: string;
   insight: string;
+
+  historicalFact: string;
+  colorScience: string;
+  learningPoint: string;
+
   clues: string[];
+
   imageUrl: string;
+
   target: Filters;
   initial: Filters;
 }
